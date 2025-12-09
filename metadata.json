@@ -1,0 +1,7 @@
+{
+  "name": "Jarvis M.Taibe",
+  "description": "A web-based AI assistant interface inspired by JARVIS, powered by Gemini Live API. Capable of real-time voice interaction and simulated system controls.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
