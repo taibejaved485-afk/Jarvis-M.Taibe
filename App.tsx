@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [powerState, setPowerState] = useState<'ONLINE' | 'OFFLINE' | 'REBOOTING'>('ONLINE');
+  const [apiKeyReady, setApiKeyReady] = useState(false);
   
   const liveClientRef = useRef<LiveClient | null>(null);
   
@@ -71,10 +72,20 @@ const App: React.FC = () => {
     volume: 50
   });
 
-  // Safe API Key access
-  const getApiKey = () => {
-      return (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
-  };
+  // Check for API Key on mount
+  useEffect(() => {
+    const checkKey = async () => {
+        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+            setApiKeyReady(true);
+            return;
+        }
+        if (window.aistudio) {
+            const has = await window.aistudio.hasSelectedApiKey();
+            setApiKeyReady(has);
+        }
+    };
+    checkKey();
+  }, []);
 
   // Initial greeting log
   useEffect(() => {
@@ -108,15 +119,43 @@ const App: React.FC = () => {
 
   const handleError = (msg: string) => {
       setError(msg);
-      if (!msg.includes("Aborted") && !msg.includes("Failed")) {
+      // Only clear non-critical errors automatically
+      if (!msg.includes("API Key")) {
           setTimeout(() => setError(null), 5000);
       }
   };
 
+  // Safe API Key access with fallback
+  const getApiKey = () => {
+      return (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
+  };
+
+  const handleApiKeySelect = async () => {
+    if (window.aistudio) {
+        try {
+            await window.aistudio.openSelectKey();
+            setApiKeyReady(true);
+            addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'Security Clearance Accepted.', type: 'success' });
+            setError(null);
+        } catch (e) {
+            console.error(e);
+            handleError("Authorization failed.");
+        }
+    } else {
+        addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'CRITICAL: API_KEY missing in environment variables.', type: 'error' });
+        handleError("API Key missing. Please set API_KEY in your deployment settings.");
+    }
+  };
+
   const connectToGemini = async (overrideVoice?: string) => {
     const apiKey = getApiKey();
+    // If we think we're ready but key is missing (race condition), try to select again
     if (!apiKey) {
-      alert("API_KEY not found in environment.");
+      if (window.aistudio) {
+          await handleApiKeySelect();
+          return;
+      }
+      handleError("API_KEY not found. Configuration required.");
       return;
     }
     
@@ -311,10 +350,17 @@ const App: React.FC = () => {
   const executeTextCommand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!textCommand.trim() || processingCommand) return;
+    
+    // Check key before executing
     const apiKey = getApiKey();
     if (!apiKey) {
-        handleError("API Key missing. Cannot execute command.");
-        return;
+         if (window.aistudio) {
+             await handleApiKeySelect();
+             return;
+         }
+         handleError("API Key missing. Cannot execute command.");
+         addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'Access Denied: Missing API Credentials.', type: 'error' });
+         return;
     }
 
     const command = textCommand;
@@ -391,9 +437,6 @@ const App: React.FC = () => {
   const getButtonClass = () => {
      const base = "px-8 py-3 font-tech text-lg font-bold tracking-widest border-2 transition-all duration-300 uppercase clip-path-polygon";
      if (connectionState === ConnectionState.CONNECTED) {
-       // Connected state is always Red/Alert style or maybe active style? 
-       // Keeping original logic: Red bg when connected to indicate "Stop" capability usually?
-       // Let's use current theme active state instead to match user preference.
        return `${base} ${currentTheme.bgLight} ${currentTheme.border} ${currentTheme.color} hover:${currentTheme.bg} hover:text-black shadow-[0_0_20px_rgba(239,68,68,0.5)]`;
      }
      
@@ -507,11 +550,12 @@ const App: React.FC = () => {
          </div>
 
          <button 
-           onClick={toggleConnection}
+           onClick={apiKeyReady ? toggleConnection : handleApiKeySelect}
            className={getButtonClass()}
            disabled={connectionState === ConnectionState.CONNECTING}
          >
-            {connectionState === ConnectionState.CONNECTING ? 'INITIALIZING...' : 
+            {!apiKeyReady ? 'AUTHORIZE PROTOCOL' : 
+             connectionState === ConnectionState.CONNECTING ? 'INITIALIZING...' : 
              connectionState === ConnectionState.CONNECTED ? 'DISENGAGE' : 'INITIALIZE'}
          </button>
          

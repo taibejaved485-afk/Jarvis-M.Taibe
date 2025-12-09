@@ -1,3 +1,4 @@
+
 export interface SystemStatus {
   cpu: number;
   memory: number;
@@ -23,4 +24,15 @@ export interface LogEntry {
 
 export interface AudioVisualizerData {
   volume: number; // 0 to 1
+}
+
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio?: AIStudio;
+  }
 }
