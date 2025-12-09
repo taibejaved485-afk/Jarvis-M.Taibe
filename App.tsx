@@ -72,16 +72,29 @@ const App: React.FC = () => {
     volume: 50
   });
 
-  // Check for API Key on mount
+  // Check for API Key on mount and poll for it
   useEffect(() => {
+    let attempts = 0;
     const checkKey = async () => {
-        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        // 1. Check process.env
+        const envKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY);
+        if (envKey) {
             setApiKeyReady(true);
             return;
         }
+
+        // 2. Check window.aistudio
         if (window.aistudio) {
-            const has = await window.aistudio.hasSelectedApiKey();
-            setApiKeyReady(has);
+            try {
+                const has = await window.aistudio.hasSelectedApiKey();
+                if (has) setApiKeyReady(true);
+            } catch(e) { console.error(e) }
+        }
+
+        // Retry a few times in case of lazy loading
+        if (attempts < 5) {
+            attempts++;
+            setTimeout(checkKey, 1000);
         }
     };
     checkKey();
@@ -119,8 +132,8 @@ const App: React.FC = () => {
 
   const handleError = (msg: string) => {
       setError(msg);
-      // Only clear non-critical errors automatically
-      if (!msg.includes("SECURITY KEY") && !msg.includes("API Key")) {
+      // Critical auth errors shouldn't auto-clear
+      if (!msg.includes("SECURITY") && !msg.includes("API")) {
           setTimeout(() => setError(null), 5000);
       }
   };
@@ -131,42 +144,61 @@ const App: React.FC = () => {
   };
 
   const handleApiKeySelect = async (): Promise<boolean> => {
+    // If AI Studio is available, use it
     if (window.aistudio) {
         try {
             await window.aistudio.openSelectKey();
-            setApiKeyReady(true);
-            addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'Security Clearance Accepted.', type: 'success' });
-            setError(null);
-            return true;
+            // Wait a moment for the key to propagate to process.env
+            await new Promise(r => setTimeout(r, 500)); 
+            
+            const key = getApiKey();
+            if (key) {
+                 setApiKeyReady(true);
+                 addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'Identity Verified. Protocol Unlocked.', type: 'success' });
+                 setError(null);
+                 return true;
+            } else {
+                 // Even if openSelectKey resolved, sometimes the env var isn't ready. 
+                 // We will return true anyway to let the caller try, or force a reload prompt.
+                 // But let's verify if hasSelectedApiKey is true
+                 const has = await window.aistudio.hasSelectedApiKey();
+                 if (has) {
+                     setApiKeyReady(true);
+                     return true;
+                 }
+            }
         } catch (e) {
             console.error(e);
-            handleError("Authorization failed.");
+            handleError("SECURITY ALERT: AUTHORIZATION CANCELLED");
             return false;
         }
-    } else {
-        addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'CRITICAL: API_KEY missing in environment variables.', type: 'error' });
-        handleError("SECURITY ALERT: API KEY MISSING. CHECK DEPLOYMENT CONFIG.");
-        return false;
     }
+    
+    // Fallback if AI Studio is missing or failed
+    const key = getApiKey();
+    if (key) return true;
+
+    addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'CRITICAL: Unable to locate Security Key.', type: 'error' });
+    handleError("SECURITY ALERT: API KEY MISSING. PLEASE CONFIGURE.");
+    return false;
   };
 
   const connectToGemini = async (overrideVoice?: string) => {
     let apiKey = getApiKey();
     
-    // If we don't have a key, try to ask for one
+    // If no key, force selection
     if (!apiKey) {
-      const authorized = await handleApiKeySelect();
-      if (authorized) {
-          // Re-fetch key after authorization
+      const success = await handleApiKeySelect();
+      if (success) {
+          // Retry fetching key
           apiKey = getApiKey();
       }
     }
 
-    // Double check if key exists now
+    // Final check
     if (!apiKey) {
-      if (!window.aistudio) {
-          handleError("SECURITY ALERT: API KEY MISSING.");
-      }
+      // If still no key, error out
+      handleError("INITIALIZATION FAILED: MISSING SECURITY CREDENTIALS");
       return;
     }
     
