@@ -120,7 +120,7 @@ const App: React.FC = () => {
   const handleError = (msg: string) => {
       setError(msg);
       // Only clear non-critical errors automatically
-      if (!msg.includes("API Key")) {
+      if (!msg.includes("SECURITY KEY") && !msg.includes("API Key")) {
           setTimeout(() => setError(null), 5000);
       }
   };
@@ -130,32 +130,43 @@ const App: React.FC = () => {
       return (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
   };
 
-  const handleApiKeySelect = async () => {
+  const handleApiKeySelect = async (): Promise<boolean> => {
     if (window.aistudio) {
         try {
             await window.aistudio.openSelectKey();
             setApiKeyReady(true);
             addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'Security Clearance Accepted.', type: 'success' });
             setError(null);
+            return true;
         } catch (e) {
             console.error(e);
             handleError("Authorization failed.");
+            return false;
         }
     } else {
         addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'CRITICAL: API_KEY missing in environment variables.', type: 'error' });
-        handleError("API Key missing. Please set API_KEY in your deployment settings.");
+        handleError("SECURITY ALERT: API KEY MISSING. CHECK DEPLOYMENT CONFIG.");
+        return false;
     }
   };
 
   const connectToGemini = async (overrideVoice?: string) => {
-    const apiKey = getApiKey();
-    // If we think we're ready but key is missing (race condition), try to select again
+    let apiKey = getApiKey();
+    
+    // If we don't have a key, try to ask for one
     if (!apiKey) {
-      if (window.aistudio) {
-          await handleApiKeySelect();
-          return;
+      const authorized = await handleApiKeySelect();
+      if (authorized) {
+          // Re-fetch key after authorization
+          apiKey = getApiKey();
       }
-      handleError("API_KEY not found. Configuration required.");
+    }
+
+    // Double check if key exists now
+    if (!apiKey) {
+      if (!window.aistudio) {
+          handleError("SECURITY ALERT: API KEY MISSING.");
+      }
       return;
     }
     
@@ -352,16 +363,23 @@ const App: React.FC = () => {
     if (!textCommand.trim() || processingCommand) return;
     
     // Check key before executing
-    const apiKey = getApiKey();
+    let apiKey = getApiKey();
     if (!apiKey) {
          if (window.aistudio) {
-             await handleApiKeySelect();
-             return;
+             const success = await handleApiKeySelect();
+             if (success) {
+                 apiKey = getApiKey();
+             } else {
+                 return;
+             }
+         } else {
+            handleError("SECURITY ALERT: API KEY MISSING.");
+            addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'Access Denied: Missing API Credentials.', type: 'error' });
+            return;
          }
-         handleError("API Key missing. Cannot execute command.");
-         addLog({ id: generateId(), timestamp: new Date().toLocaleTimeString(), source: 'SYSTEM', message: 'Access Denied: Missing API Credentials.', type: 'error' });
-         return;
     }
+
+    if (!apiKey) return;
 
     const command = textCommand;
     setTextCommand('');
