@@ -326,7 +326,10 @@ const App: React.FC = () => {
     }
   };
 
-  // UI Colors based on theme
+  // --- STYLING HELPERS ---
+  // We must return explicit strings so Tailwind CDN scanner can see them.
+  // Dynamic string construction (e.g. `bg-${color}-500`) often fails with CDN.
+  
   const getThemeColor = () => {
     if (theme === 'red') return 'text-red-500 border-red-500 shadow-red-500/50';
     if (theme === 'gold') return 'text-yellow-500 border-yellow-500 shadow-yellow-500/50';
@@ -344,6 +347,12 @@ const App: React.FC = () => {
      if (theme === 'gold') return 'text-yellow-500 placeholder-yellow-800';
      return 'text-cyan-500 placeholder-cyan-800';
   };
+  
+  const getBackgroundGradient = () => {
+      if (theme === 'red') return 'from-red-900/10';
+      if (theme === 'gold') return 'from-yellow-900/10';
+      return 'from-cyan-900/10';
+  }
 
   const getInputClass = () => {
       // Base classes
@@ -371,9 +380,17 @@ const App: React.FC = () => {
      if (connectionState === ConnectionState.CONNECTED) {
        return `${base} bg-red-900/20 border-red-500 text-red-500 hover:bg-red-500 hover:text-black shadow-[0_0_20px_rgba(239,68,68,0.5)]`;
      }
-     const color = theme === 'red' ? 'red' : theme === 'gold' ? 'yellow' : 'cyan';
-     return `${base} bg-${color}-900/20 border-${color}-500 text-${color}-500 hover:bg-${color}-500 hover:text-black shadow-[0_0_20px_rgba(6,182,212,0.5)]`;
+     
+     if (theme === 'red') return `${base} bg-red-900/20 border-red-500 text-red-500 hover:bg-red-500 hover:text-black shadow-[0_0_20px_rgba(239,68,68,0.5)]`;
+     if (theme === 'gold') return `${base} bg-yellow-900/20 border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black shadow-[0_0_20px_rgba(234,179,8,0.5)]`;
+     return `${base} bg-cyan-900/20 border-cyan-500 text-cyan-500 hover:bg-cyan-500 hover:text-black shadow-[0_0_20px_rgba(6,182,212,0.5)]`;
   };
+  
+  const getBorderRightColor = () => {
+      if (theme === 'red') return 'border-red-500/50';
+      if (theme === 'gold') return 'border-yellow-500/50';
+      return 'border-cyan-500/50';
+  }
 
   // --- RENDER HELPERS ---
   const renderOfflineOverlay = () => (
@@ -424,8 +441,8 @@ const App: React.FC = () => {
            }}>
       </div>
       
-      {/* Radial Gradient for atmosphere */}
-      <div className={`absolute inset-0 z-0 bg-radial-gradient from-${theme === 'red' ? 'red' : theme === 'gold' ? 'yellow' : 'cyan'}-900/10 to-transparent pointer-events-none`}></div>
+      {/* Radial Gradient for atmosphere - Using Custom Utility + Explicit Color Class */}
+      <div className={`absolute inset-0 z-0 bg-radial-gradient ${getBackgroundGradient()} to-transparent pointer-events-none`}></div>
 
       {/* LEFT PANEL (Logs & Info) */}
       <div className={`z-10 w-full md:w-1/3 h-[45%] md:h-full p-4 md:p-8 order-2 md:order-1 flex flex-col transition-opacity duration-1000 ${powerState === 'ONLINE' ? 'opacity-100' : 'opacity-0'}`}>
@@ -514,7 +531,7 @@ const App: React.FC = () => {
       <div className={`z-10 hidden md:flex w-1/3 h-full p-8 flex-col justify-center items-end order-3 transition-opacity duration-1000 ${powerState === 'ONLINE' ? 'opacity-100' : 'opacity-0'}`}>
          
          {/* Power Controls */}
-         <div className={`mb-4 flex flex-col items-end gap-2 border-r-2 ${theme === 'red' ? 'border-red-500/50' : theme === 'gold' ? 'border-yellow-500/50' : 'border-cyan-500/50'} pr-4 p-4 bg-black/20 backdrop-blur-sm`}>
+         <div className={`mb-4 flex flex-col items-end gap-2 border-r-2 ${getBorderRightColor()} pr-4 p-4 bg-black/20 backdrop-blur-sm`}>
             <span className={`font-tech text-xs tracking-[0.2em] ${getThemeText()} font-bold`}>POWER PROTOCOLS</span>
             <div className="flex gap-2">
                <button 
@@ -533,7 +550,7 @@ const App: React.FC = () => {
          </div>
 
          {/* Voice Selector */}
-         <div className={`mb-4 flex flex-col items-end gap-2 border-r-2 ${theme === 'red' ? 'border-red-500/50' : theme === 'gold' ? 'border-yellow-500/50' : 'border-cyan-500/50'} pr-4 p-4 bg-black/20 backdrop-blur-sm`}>
+         <div className={`mb-4 flex flex-col items-end gap-2 border-r-2 ${getBorderRightColor()} pr-4 p-4 bg-black/20 backdrop-blur-sm`}>
             <span className={`font-tech text-xs tracking-[0.2em] ${getThemeText()} font-bold`}>VOICE IDENTITY</span>
             <div className="flex gap-2 flex-wrap justify-end max-w-[200px]">
                {['Puck', 'Zephyr', 'Kore', 'Fenrir', 'Charon'].map(v => (
@@ -549,7 +566,7 @@ const App: React.FC = () => {
          </div>
 
          {/* Theme Selector */}
-         <div className={`mb-8 flex flex-col items-end gap-2 border-r-2 ${theme === 'red' ? 'border-red-500/50' : theme === 'gold' ? 'border-yellow-500/50' : 'border-cyan-500/50'} pr-4 p-4 bg-black/20 backdrop-blur-sm`}>
+         <div className={`mb-8 flex flex-col items-end gap-2 border-r-2 ${getBorderRightColor()} pr-4 p-4 bg-black/20 backdrop-blur-sm`}>
             <span className={`font-tech text-xs tracking-[0.2em] ${getThemeText()} font-bold`}>INTERFACE THEME</span>
             <div className="flex gap-2">
               <button 

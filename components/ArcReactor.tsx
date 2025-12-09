@@ -306,6 +306,12 @@ const ArcReactor: React.FC<ArcReactorProps> = ({ active, volume, themeColor, sys
 
     return () => cancelAnimationFrame(animationId);
   }, []); // Run setup once, loops via refs
+  
+  const getCrosshairColor = () => {
+      if (themeColor === 'red') return 'bg-red-500';
+      if (themeColor === 'gold') return 'bg-yellow-500';
+      return 'bg-cyan-500';
+  }
 
   return (
     <div className="relative flex items-center justify-center">
@@ -315,9 +321,9 @@ const ArcReactor: React.FC<ArcReactorProps> = ({ active, volume, themeColor, sys
             height={420} 
             className="z-10"
         />
-        {/* Background crosshairs */}
-        <div className={`absolute w-[600px] h-[1px] bg-${themeColor === 'red' ? 'red-500' : themeColor === 'gold' ? 'yellow-500' : 'cyan-500'} opacity-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2`}></div>
-        <div className={`absolute h-[600px] w-[1px] bg-${themeColor === 'red' ? 'red-500' : themeColor === 'gold' ? 'yellow-500' : 'cyan-500'} opacity-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2`}></div>
+        {/* Background crosshairs - Explicit classes */}
+        <div className={`absolute w-[600px] h-[1px] ${getCrosshairColor()} opacity-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2`}></div>
+        <div className={`absolute h-[600px] w-[1px] ${getCrosshairColor()} opacity-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2`}></div>
     </div>
   );
 };
