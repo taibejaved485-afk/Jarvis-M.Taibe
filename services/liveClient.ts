@@ -2,6 +2,9 @@ import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } f
 import { base64ToUint8Array, arrayBufferToBase64, decodeAudioData, float32ToPCM16 } from '../utils/audioUtils';
 import { LogEntry } from '../types';
 
+// Safe ID generator for browsers that might fail on crypto.randomUUID
+const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
 interface LiveClientConfig {
   apiKey: string;
   voiceName: string;
@@ -180,7 +183,7 @@ export class LiveClient {
       
       this.config.onError(errorMessage);
       this.config.onLog({
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toLocaleTimeString(),
         source: 'SYSTEM',
         message: `Connection Aborted: ${errorMessage}`,
@@ -192,7 +195,7 @@ export class LiveClient {
   private handleOpen() {
     this.config.onStatusChange('CONNECTED');
     this.config.onLog({
-      id: crypto.randomUUID(),
+      id: generateId(),
       timestamp: new Date().toLocaleTimeString(),
       source: 'SYSTEM',
       message: 'J.A.R.V.I.S. Protocol Online',
@@ -206,7 +209,7 @@ export class LiveClient {
     if (message.toolCall) {
       for (const fc of message.toolCall.functionCalls) {
         this.config.onLog({
-            id: crypto.randomUUID(),
+            id: generateId(),
             timestamp: new Date().toLocaleTimeString(),
             source: 'JARVIS',
             message: `Executing protocol: ${fc.name}`,
@@ -221,7 +224,7 @@ export class LiveClient {
            const errStr = err.message || "Unknown tool failure";
            console.error(`Tool execution failed for ${fc.name}`, err);
            this.config.onLog({
-               id: crypto.randomUUID(),
+               id: generateId(),
                timestamp: new Date().toLocaleTimeString(),
                source: 'SYSTEM',
                message: `CRITICAL: Tool Failure (${fc.name}) - ${errStr}`,
@@ -283,7 +286,7 @@ export class LiveClient {
       this.activeSources.clear();
       this.nextStartTime = 0;
       this.config.onLog({
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toLocaleTimeString(),
         source: 'SYSTEM',
         message: 'Output Interrupted',
@@ -297,7 +300,7 @@ export class LiveClient {
     const msg = "WebSocket communication interrupted.";
     this.config.onError(msg);
     this.config.onLog({
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toLocaleTimeString(),
         source: 'SYSTEM',
         message: `Protocol Error Detected: ${msg}`,
@@ -308,7 +311,7 @@ export class LiveClient {
   private handleClose(e: CloseEvent) {
     this.config.onStatusChange('DISCONNECTED');
      this.config.onLog({
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toLocaleTimeString(),
         source: 'SYSTEM',
         message: 'J.A.R.V.I.S. Protocol Offline',
@@ -355,10 +358,9 @@ export class LiveClient {
   }
 
   public async disconnect() {
-    // 1. Stop processing audio first to prevent new data sending
     if (this.processor) {
         this.processor.disconnect();
-        this.processor.onaudioprocess = null; // Prevent callback execution
+        this.processor.onaudioprocess = null; 
         this.processor = null;
     }
     if (this.source) {
@@ -370,7 +372,6 @@ export class LiveClient {
         this.stream = null;
     }
     
-    // 2. Close Audio Contexts
     if (this.inputAudioContext && this.inputAudioContext.state !== 'closed') {
         await this.inputAudioContext.close();
         this.inputAudioContext = null;
@@ -380,19 +381,14 @@ export class LiveClient {
         this.outputAudioContext = null;
     }
 
-    // 3. Stop Active Sources
     this.activeSources.forEach(s => {
       try { s.stop(); } catch(e) {}
     });
     this.activeSources.clear();
 
-    // 4. Close Session
     if (this.sessionPromise) {
         try {
             const session = await this.sessionPromise;
-            // The disconnect method handles cleanup, but session.close() ensures websocket is closed.
-            // Note: The SDK documentation suggests using close() on the session.
-            // Casting to any because strict types might not show .close() in all versions but it exists on the implementation
             (session as any).close();
         } catch (e) {
             console.debug('Session close error', e);
